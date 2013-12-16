@@ -20,7 +20,7 @@ p.qG = 0.000126;
 p.kdGFP = 0.024259;
 p.x0 = 0.000280;
 p.gi0 = 73200.000000;
-p.C0Value = 3; %defaultS
+p.C0Value = 3; %default
 p.N0Value = 0.5; %default
 p.I0Value = 1; %default
 
@@ -35,6 +35,8 @@ p.I0Value = 1; % initial value of external iron
 % y0 = [p.x0  p.C0Value  p.N0Value  p.I0Value  p.ni0  p.ii0  p.gi0];
 models = models.addTimeSeries(timehoursBackBone', odBackBone,...
     p, gfpBackBone);
+modeltest = ModelWithGfp(p);
+%%
 
 % add all other time series
 % basedir = '/Users/xavierj/Joao/lab_results/kerry/mathematical_model_paper/aligned_mat_files/manual_alignment_finetuned/';
@@ -87,7 +89,7 @@ for j = 1:length(matfile)
             p, gfpdata(:, (1:7) + 56 + (column-1)*7));
     end
 end
-%%
+
 models.solveModel;
 
 %%
@@ -170,3 +172,11 @@ set(gca, 'Color', [0.2 0.2 0.2]);
 set(gca, 'YLim', [5 8e4]);
 set(gca, 'YScale', 'lin');
 
+%%
+models.arrayOfModels(2).model.p.C0Value
+models.changeParameterValue({'C0Value'},0.75, 2)
+models.arrayOfModels(2).model.p.C0Value
+models.solveModel;
+models = models.fitParameters('Yn',2:5);
+%%
+models = models.fitParameters('C0Value',2:5);
