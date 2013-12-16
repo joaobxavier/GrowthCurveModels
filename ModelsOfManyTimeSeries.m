@@ -32,13 +32,8 @@ classdef ModelsOfManyTimeSeries
                 listOfModels = 1:length(mwg.arrayOfModels);
             end
             for i = listOfModels
-                if ~iscell(p)
-                    mwg.arrayOfModels(i).model =...
-                        mwg.arrayOfModels(i).model.changeParameterValue(p,v);
-                else
-                    mwg.arrayOfModels(i).model =...
-                        mwg.arrayOfModels(i).model.changeParameterValues(p,v);                    
-                end
+                mwg.arrayOfModels(i).model =...
+                    mwg.arrayOfModels(i).model.changeParameterValues(p,v);
             end
         end
         
@@ -84,7 +79,7 @@ classdef ModelsOfManyTimeSeries
                 listOfModels = 1:length(mwg.arrayOfModels);
             end
             % initialize with the values read from the first model
-            b0 = mwg.arrayOfModels(1).model.getParameterValues(p);
+            b0 = mwg.arrayOfModels(1).model.getParameterValue(p);
 
             function err = errorAll(b)
                 mwg = mwg.changeParameterValue(p, b);
@@ -102,7 +97,7 @@ classdef ModelsOfManyTimeSeries
             mwg = mwg.solveModel;
         end
 
-        % optimize many parameters for OD simulatenously using fminsearch
+        % optimize many parameters for OD simulatenously using nlinfit
         % p is a cell array with all the parameters to optimize
         function mwg = fitParameters(mwg, p, listOfModels, flagForPlot)
             if nargin == 2
@@ -269,13 +264,37 @@ classdef ModelsOfManyTimeSeries
         %%%%%%%%%%%%%%%%%%%%%%%%%%%
         
         % prints a list of all the parameters int he model
-        function [] = printParameterSet(mwg)
-            p = mwg.arrayOfModels(1).model.p;
-            fnames = fieldnames(p);
-            for i = 1:length(fnames)
-                fprintf('p.%s = %f;\n', fnames{i}, p.(fnames{i}));
+        function [] = printParameterSet(mwg, listOfModels)
+            if nargin <2
+                listOfModels = 1;
+            end
+            
+            for j = 1:length(listOfModels)
+                p = mwg.arrayOfModels(listOfModels(j)).model.p;
+                fnames = fieldnames(p);
+                for i = 1:length(fnames)
+                    fprintf('p.%s = %f;\n', fnames{i}, p.(fnames{i}));
+                end
             end
                 
+        end
+        
+        function [] = whatIsy0(mwg, listOfModels)
+            fprintf('y0 = [p.x0  p.C0Value  p.N0Value  p.I0Value p.ni0  p.ii0  p.gi0];');
+            y0names = {'x0', 'C0Value',  'N0Value',  'I0Value', 'ni0',  'ii0',  'gi0'};
+            
+            if nargin < 2
+                listOfModels = 1;
+            end
+            
+            for j = 1:length(listOfModels)
+                p = mwg.arrayOfModels(listOfModels(j)).model.p;
+                fprintf(strcat('Model ', listOfModels(j)));
+                for i = length(y0names)
+                    fprintf('p.%s = %f;\n', y0names{i}, p.(y0names{i}));
+                end
+                fprintf('\n');
+            end
         end
     end
     
