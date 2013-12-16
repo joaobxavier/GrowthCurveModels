@@ -69,11 +69,15 @@ classdef ModelWithGfp
         % v - araray with new value for parameters
         function mwg = changeParameterValues(mwg, p, v)
             if ~iscell(p)
+                'hi'
                 p = {p};
             end
             
             for i = 1:length(p)
-                mwg.p.(p{i}) = v(i);
+                v(i)
+                p{i}
+%                 mwg.p.(p{i}) = v(i);
+                mwg = setfield(mwg, p{i}, v(i));
             end
         end
         
