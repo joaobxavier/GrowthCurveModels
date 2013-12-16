@@ -15,9 +15,8 @@ classdef ModelsOfManyTimeSeries
         end
         
         % create a new model and add
-        function mwg = addTimeSeries(mwg, t, od, p, y0, gfp)
+        function mwg = addTimeSeries(mwg, t, od, p, gfp)
             model = ModelWithGfp(p);
-            model = model.setInitialValues(y0);
             model = model.setData(t, od, gfp);
             model = model.solveModel;            
             if isempty(mwg.arrayOfModels)
