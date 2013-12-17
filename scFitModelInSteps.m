@@ -173,10 +173,5 @@ set(gca, 'YLim', [5 8e4]);
 set(gca, 'YScale', 'lin');
 
 %%
-models.arrayOfModels(2).model.p.C0Value
-models.changeParameterValue({'C0Value'},0.75, 2)
-models.arrayOfModels(2).model.p.C0Value
-models.solveModel;
-models = models.fitParameters('Yn',2:5);
-%%
-models = models.fitParameters('C0Value',2:5);
+models = models.changeParameterValue('C0Value',[.49,.49], [2,6]);
+models = models.fitParametersSpecModels('C0Value',[2,6]);
