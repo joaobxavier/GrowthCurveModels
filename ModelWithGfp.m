@@ -73,10 +73,7 @@ classdef ModelWithGfp
             end
             
             for i = 1:length(p)
-                v(i)
-                p{i}
                 mwg.p.(p{i}) = v(i);
-%                 mwg = setfield(mwg, p{i}, v(i));
             end
         end
         
