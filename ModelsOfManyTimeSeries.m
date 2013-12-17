@@ -37,9 +37,23 @@ classdef ModelsOfManyTimeSeries
             end
         end
         
-        
-        
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function mwg = updateParameterValue(mwg, p, m, listOfModels)
+            if nargin == 3
+                listOfModels = 1:length(mwg.arrayOfModels);
+            end
+            v = zeros(1,length(p));
+            for j = 1:length(p)
+                v = mwg.arrayOfModels(m).model.getParameterValues(p);
+            end
+            for i = listOfModels
+                if i ~= m
+                    mwg.arrayOfModels(i).model =...
+                        mwg.arrayOfModels(m).model.changeParameterValues(p,v);
+                end
+            end
+        end
+            
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %%%% COMPUTING ROUTINES %%%% 
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -104,8 +118,10 @@ classdef ModelsOfManyTimeSeries
                 listOfModels = 1:length(mwg.arrayOfModels);
             end
             
-            % initialize with the values read from the first model
-            b0 = mwg.arrayOfModels(1).model.getParameterValues(p);
+            % initialize with the values read from the first model in the
+            % list
+            b0 = mwg.arrayOfModels(listOfModels(1)).model.getParameterValues(p);
+%             b0 = mwg.arrayOfModels(1).model.getParameterValues(p);
             [timehours, ods, ~] = mwg.getAllTimeSeries(listOfModels);
             odModel = zeros(size(ods));
 
@@ -147,6 +163,72 @@ classdef ModelsOfManyTimeSeries
                 hold off;
 
             end
+        end
+        
+        % optimize many parameters for OD simulatenously using nlinfit
+        % p is a cell array with all the parameters to optimize
+        % fits specific models from listOfModels ONLY. To use the fitted
+        % values in the other models, use flagForUpdate
+        function mwg = fitParametersSpecModels(mwg, p, listOfModels, flagForUpdate, flagForPlot)
+            if nargin == 2
+                listOfModels = 1:length(mwg.arrayOfModels);
+            end
+            
+            % initialize with the values read from the first model in the
+            % list
+            b0 = mwg.arrayOfModels(listOfModels(1)).model.getParameterValues(p);
+%             b0 = mwg.arrayOfModels(1).model.getParameterValues(p);
+            [timehours, ods, ~] = mwg.getAllTimeSeries(listOfModels);
+            odModel = zeros(size(ods));
+
+            function modelResult = model(b, t)
+                mwg = mwg.changeParameterValue(p, b, listOfModels);
+                mwg = mwg.solveModel(listOfModels);
+                c = 0;
+                for j = listOfModels
+                    c = c + 1;
+                    odModel(:, c) =...
+                        interp1(mwg.arrayOfModels(j).model.timehours,...
+                        mwg.arrayOfModels(j).model.x, timehours, 'nearest');
+                end
+                modelResult = log(odModel(:));
+            end 
+            
+            [mdl,R,J,CovB,MSE] =...
+                nlinfit(timehours, log(ods(:)),...
+                @model, b0, optimset('Display', 'iter'))
+            % set the values
+            mwg = mwg.changeParameterValue(p, mdl, listOfModels);
+            mwg = mwg.solveModel;
+            
+            %Takes the parameters from p for the first model in the list of
+            %fitted models and uses these values to update all models in
+            %mwg.arrayOfModels
+            if (nargin > 3) && (flagForUpdate)
+                mwg = mwg.updateParameterValues(p,listOfModels(1), ...
+                    1:length(mwg.arrayOfModels));
+            end
+            
+            
+            if (nargin > 4) && (flagForPlot)
+                figure;
+                plot(timehours, ods(1:length(timehours)), 'b-');
+                hold on;
+                [ypred, delta] = nlpredci(@model,...
+                    timehours,mdl,R,'Covar',CovB,...
+                    'MSE',MSE,'SimOpt','on');
+                ci = nlparci(mdl,R,'covar',CovB)
+                lower = ypred - delta;
+                upper = ypred + delta;
+                plot(timehours,exp(ypred(1:length(timehours))),'k','LineWidth',2);
+                plot(timehours,...
+                    [exp(lower(1:length(timehours))),...
+                    exp(upper(1:length(timehours)))]...
+                    ,'r--','LineWidth',1.5);
+                hold off;
+
+            end
+            
         end
         
         % compile all data points in a single matrix to use with nlinfit
