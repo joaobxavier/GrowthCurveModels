@@ -3,7 +3,7 @@ classdef ModelWithGfp
     
     properties (SetAccess = protected)
         p;
-        y0;
+%         y0;
         % experimental data (for fitting)
         timehours;
         od;
@@ -32,7 +32,13 @@ classdef ModelWithGfp
         
         % set the array od initial values for simulation
         function mwg = setInitialValues(mwg, y0)
-            mwg.y0 = y0;
+            mwg.x0 = y0(1);
+            mwg.C0Value = y0(2);
+            mwg.N0Value = y0(3);
+            mwg.I0Value = y0(4);
+            mwg.ni0 = y0(5);
+            mwg.ii0 = y0(6);
+            mwg.gi0 = y0(7);
         end
         
         % Add an experimental data time series
@@ -51,17 +57,21 @@ classdef ModelWithGfp
             end
         end
         
-        % Change value of a parameter
-        % p - parameter name (field in mwg.p)
-        % v - new value for parameter
-        function mwg = changeParameterValue(mwg, p, v)
-            mwg.p.(p) = v;
-        end
+%         % Change value of a parameter
+%         % p - parameter name (field in mwg.p)
+%         % v - new value for parameter
+%         function mwg = changeParameterValue(mwg, p, v)
+%             mwg.p.(p) = v;
+%         end
         
         % Change value of many parameters
         % p - cell array with parameter names (field in mwg.p)
         % v - araray with new value for parameters
         function mwg = changeParameterValues(mwg, p, v)
+            if ~iscell(p)
+                p = {p};
+            end
+            
             for i = 1:length(p)
                 mwg.p.(p{i}) = v(i);
             end
@@ -70,6 +80,9 @@ classdef ModelWithGfp
         % Get the value of parameters
         % p - cell array with parameter names (field in mwg.p)
         function v = getParameterValues(mwg, p)
+            if ~iscell(p)
+                p = {p};
+            end
             v = zeros(1, length(p));
             for i = 1:length(p)
                 v(i) = mwg.p.(p{i});
@@ -149,16 +162,17 @@ classdef ModelWithGfp
         function mwg = solveModel(mwg, timehours, y0)
             if nargin < 3
                 % if y0 is not provided, use predefined y0
-                y0 = mwg.y0;
+                y0 = [mwg.p.x0, mwg.p.C0Value, mwg.p.N0Value, ...
+                    mwg.p.I0Value, mwg.p.ni0, mwg.p.ii0, mwg.p.gi0];
             end
             if nargin < 2
-                % if y0 is not provided, use predefined y0
+                % if timehours is not provided, use predefined timehours
                 timehours = mwg.timehours;
             end
             % set the value of the qG
             mwg.p.qG    = mwg.p.muMax / mwg.p.ni0 / mwg.p.ii0;
-            y0(5) = mwg.p.ni0;
-            y0(6) = mwg.p.ii0;
+%             y0(5) = mwg.p.ni0;
+%             y0(6) = mwg.p.ii0;
             %
             f = @(t,y)mwg.growthFunctionInternalNRWithGFP(t, y);
             options = odeset('NonNegative', 1:length(y0));

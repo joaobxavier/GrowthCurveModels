@@ -15,9 +15,8 @@ classdef ModelsOfManyTimeSeries
         end
         
         % create a new model and add
-        function mwg = addTimeSeries(mwg, t, od, p, y0, gfp)
+        function mwg = addTimeSeries(mwg, t, od, p, gfp)
             model = ModelWithGfp(p);
-            model = model.setInitialValues(y0);
             model = model.setData(t, od, gfp);
             model = model.solveModel;            
             if isempty(mwg.arrayOfModels)
@@ -33,19 +32,28 @@ classdef ModelsOfManyTimeSeries
                 listOfModels = 1:length(mwg.arrayOfModels);
             end
             for i = listOfModels
-                if ~iscell(p)
-                    mwg.arrayOfModels(i).model =...
-                        mwg.arrayOfModels(i).model.changeParameterValue(p,v);
-                else
-                    mwg.arrayOfModels(i).model =...
-                        mwg.arrayOfModels(i).model.changeParameterValues(p,v);                    
-                end
+                mwg.arrayOfModels(i).model =...
+                    mwg.arrayOfModels(i).model.changeParameterValues(p,v);
             end
         end
         
-        
-        
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function mwg = updateParameterValue(mwg, p, m, listOfModels)
+            if nargin == 3
+                listOfModels = 1:length(mwg.arrayOfModels);
+            end
+            v = zeros(1,length(p));
+            for j = 1:length(p)
+                v = mwg.arrayOfModels(m).model.getParameterValues(p);
+            end
+            for i = listOfModels
+                if i ~= m
+                    mwg.arrayOfModels(i).model =...
+                        mwg.arrayOfModels(m).model.changeParameterValues(p,v);
+                end
+            end
+        end
+            
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %%%% COMPUTING ROUTINES %%%% 
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -85,7 +93,7 @@ classdef ModelsOfManyTimeSeries
                 listOfModels = 1:length(mwg.arrayOfModels);
             end
             % initialize with the values read from the first model
-            b0 = mwg.arrayOfModels(1).model.getParameterValues(p);
+            b0 = mwg.arrayOfModels(1).model.getParameterValue(p);
 
             function err = errorAll(b)
                 mwg = mwg.changeParameterValue(p, b);
@@ -103,15 +111,17 @@ classdef ModelsOfManyTimeSeries
             mwg = mwg.solveModel;
         end
 
-        % optimize many parameters for OD simulatenously using fminsearch
+        % optimize many parameters for OD simulatenously using nlinfit
         % p is a cell array with all the parameters to optimize
         function mwg = fitParameters(mwg, p, listOfModels, flagForPlot)
             if nargin == 2
                 listOfModels = 1:length(mwg.arrayOfModels);
             end
             
-            % initialize with the values read from the first model
-            b0 = mwg.arrayOfModels(1).model.getParameterValues(p);
+            % initialize with the values read from the first model in the
+            % list
+            b0 = mwg.arrayOfModels(listOfModels(1)).model.getParameterValues(p);
+%             b0 = mwg.arrayOfModels(1).model.getParameterValues(p);
             [timehours, ods, ~] = mwg.getAllTimeSeries(listOfModels);
             odModel = zeros(size(ods));
 
@@ -153,6 +163,72 @@ classdef ModelsOfManyTimeSeries
                 hold off;
 
             end
+        end
+        
+        % optimize many parameters for OD simulatenously using nlinfit
+        % p is a cell array with all the parameters to optimize
+        % fits specific models from listOfModels ONLY. To use the fitted
+        % values in the other models, use flagForUpdate
+        function mwg = fitParametersSpecModels(mwg, p, listOfModels, flagForUpdate, flagForPlot)
+            if nargin == 2
+                listOfModels = 1:length(mwg.arrayOfModels);
+            end
+            
+            % initialize with the values read from the first model in the
+            % list
+            b0 = mwg.arrayOfModels(listOfModels(1)).model.getParameterValues(p);
+%             b0 = mwg.arrayOfModels(1).model.getParameterValues(p);
+            [timehours, ods, ~] = mwg.getAllTimeSeries(listOfModels);
+            odModel = zeros(size(ods));
+
+            function modelResult = model(b, t)
+                mwg = mwg.changeParameterValue(p, b, listOfModels);
+                mwg = mwg.solveModel(listOfModels);
+                c = 0;
+                for j = listOfModels
+                    c = c + 1;
+                    odModel(:, c) =...
+                        interp1(mwg.arrayOfModels(j).model.timehours,...
+                        mwg.arrayOfModels(j).model.x, timehours, 'nearest');
+                end
+                modelResult = log(odModel(:));
+            end 
+            
+            [mdl,R,J,CovB,MSE] =...
+                nlinfit(timehours, log(ods(:)),...
+                @model, b0, optimset('Display', 'iter'))
+            % set the values
+            mwg = mwg.changeParameterValue(p, mdl, listOfModels);
+            mwg = mwg.solveModel;
+            
+            %Takes the parameters from p for the first model in the list of
+            %fitted models and uses these values to update all models in
+            %mwg.arrayOfModels
+            if (nargin > 3) && (flagForUpdate)
+                mwg = mwg.updateParameterValues(p,listOfModels(1), ...
+                    1:length(mwg.arrayOfModels));
+            end
+            
+            
+            if (nargin > 4) && (flagForPlot)
+                figure;
+                plot(timehours, ods(1:length(timehours)), 'b-');
+                hold on;
+                [ypred, delta] = nlpredci(@model,...
+                    timehours,mdl,R,'Covar',CovB,...
+                    'MSE',MSE,'SimOpt','on');
+                ci = nlparci(mdl,R,'covar',CovB)
+                lower = ypred - delta;
+                upper = ypred + delta;
+                plot(timehours,exp(ypred(1:length(timehours))),'k','LineWidth',2);
+                plot(timehours,...
+                    [exp(lower(1:length(timehours))),...
+                    exp(upper(1:length(timehours)))]...
+                    ,'r--','LineWidth',1.5);
+                hold off;
+
+            end
+            
         end
         
         % compile all data points in a single matrix to use with nlinfit
@@ -270,13 +346,37 @@ classdef ModelsOfManyTimeSeries
         %%%%%%%%%%%%%%%%%%%%%%%%%%%
         
         % prints a list of all the parameters int he model
-        function [] = printParameterSet(mwg)
-            p = mwg.arrayOfModels(1).model.p;
-            fnames = fieldnames(p);
-            for i = 1:length(fnames)
-                fprintf('p.%s = %f;\n', fnames{i}, p.(fnames{i}));
+        function [] = printParameterSet(mwg, listOfModels)
+            if nargin <2
+                listOfModels = 1;
+            end
+            
+            for j = 1:length(listOfModels)
+                p = mwg.arrayOfModels(listOfModels(j)).model.p;
+                fnames = fieldnames(p);
+                for i = 1:length(fnames)
+                    fprintf('p.%s = %f;\n', fnames{i}, p.(fnames{i}));
+                end
             end
                 
+        end
+        
+        function [] = whatIsy0(mwg, listOfModels)
+            fprintf('y0 = [p.x0  p.C0Value  p.N0Value  p.I0Value p.ni0  p.ii0  p.gi0];');
+            y0names = {'x0', 'C0Value',  'N0Value',  'I0Value', 'ni0',  'ii0',  'gi0'};
+            
+            if nargin < 2
+                listOfModels = 1;
+            end
+            
+            for j = 1:length(listOfModels)
+                p = mwg.arrayOfModels(listOfModels(j)).model.p;
+                fprintf(strcat('Model ', listOfModels(j)));
+                for i = length(y0names)
+                    fprintf('p.%s = %f;\n', y0names{i}, p.(y0names{i}));
+                end
+                fprintf('\n');
+            end
         end
     end
     
