@@ -362,17 +362,17 @@ classdef ModelsOfManyTimeSeries
         end
         
         function [] = whatIsy0(mwg, listOfModels)
-            fprintf('y0 = [p.x0  p.C0Value  p.N0Value  p.I0Value p.ni0  p.ii0  p.gi0];');
+            fprintf('y0 = [p.x0  p.C0Value  p.N0Value  p.I0Value p.ni0  p.ii0  p.gi0];\n');
             y0names = {'x0', 'C0Value',  'N0Value',  'I0Value', 'ni0',  'ii0',  'gi0'};
             
             if nargin < 2
                 listOfModels = 1;
             end
             
-            for j = 1:length(listOfModels)
-                p = mwg.arrayOfModels(listOfModels(j)).model.p;
-                fprintf(strcat('Model ', listOfModels(j)));
-                for i = length(y0names)
+            for j = listOfModels
+                p = mwg.arrayOfModels(j).model.p;
+                fprintf(strcat('Model ', num2str(j), '\n'));
+                for i = 1:length(y0names)
                     fprintf('p.%s = %f;\n', y0names{i}, p.(y0names{i}));
                 end
                 fprintf('\n');
